@@ -23,11 +23,11 @@ function ProtectedRoute({ children, allowedRole }) {
   // Wrong role
   if (allowedRole && user.role !== allowedRole) {
     if (user.role === "donor") {
-      return <Navigate to="/donor/dashboard" replace />;
+      return <Navigate to="/donor-dashboard" replace />;
     }
 
     if (user.role === "requester") {
-      return <Navigate to="/requester/dashboard" replace />;
+      return <Navigate to="/requester-dashboard" replace />;
     }
 
     return <Navigate to="/login" replace />;

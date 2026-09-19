@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
 import api from "../api/api";
 
-function DonorProfileSetup() {
+function DonorProfile() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -14,36 +15,50 @@ function DonorProfileSetup() {
     available: true,
   });
 
-  const [locationStatus, setLocationStatus] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [locationStatus, setLocationStatus] =
+    useState("");
 
-  // ==========================================
-  // HANDLE FORM INPUT
-  // ==========================================
+  const [loading, setLoading] =
+    useState(false);
+
+  // =====================================================
+  // INPUT CHANGE
+  // =====================================================
 
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const {
+      name,
+      value,
+      type,
+      checked,
+    } = e.target;
 
     setForm((previous) => ({
       ...previous,
-      [name]: type === "checkbox" ? checked : value,
+
+      [name]:
+        type === "checkbox"
+          ? checked
+          : value,
     }));
   };
 
-  // ==========================================
-  // GET CURRENT LOCATION
-  // ==========================================
+  // =====================================================
+  // GET CURRENT GPS LOCATION
+  // =====================================================
 
   const getCurrentLocation = () => {
     if (!navigator.geolocation) {
       setLocationStatus(
-        "Location is not supported by your browser."
+        "Location is not supported by this browser."
       );
 
       return;
     }
 
-    setLocationStatus("Getting your current location...");
+    setLocationStatus(
+      "Getting your location..."
+    );
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -60,21 +75,15 @@ function DonorProfileSetup() {
         }));
 
         setLocationStatus(
-          "✅ Current location captured successfully"
+          "✓ Current location captured"
         );
-
-        console.log("Latitude:", latitude);
-        console.log("Longitude:", longitude);
       },
 
       (error) => {
-        console.error(
-          "Location error:",
-          error
-        );
+        console.error(error);
 
         setLocationStatus(
-          "❌ Unable to get location. Please allow location permission."
+          "Could not access location. Please allow location permission."
         );
       },
 
@@ -85,20 +94,17 @@ function DonorProfileSetup() {
     );
   };
 
-  // ==========================================
-  // LOAD OLD DONOR PROFILE
-  // ==========================================
+  // =====================================================
+  // LOAD EXISTING PROFILE
+  // =====================================================
 
   useEffect(() => {
     const loadProfile = async () => {
       try {
         const response =
-          await api.get("/donors/profile");
-
-        console.log(
-          "Existing donor profile:",
-          response.data
-        );
+          await api.get(
+            "/donors/profile"
+          );
 
         setForm({
           blood_group:
@@ -108,16 +114,18 @@ function DonorProfileSetup() {
             response.data.city || "",
 
           latitude:
-            response.data.latitude ?? null,
+            response.data.latitude,
 
           longitude:
-            response.data.longitude ?? null,
+            response.data.longitude,
 
           last_donation_date:
-            response.data.last_donation_date || "",
+            response.data.last_donation_date ||
+            "",
 
           available:
-            response.data.available ?? true,
+            response.data.available ??
+            true,
         });
 
         if (
@@ -125,18 +133,16 @@ function DonorProfileSetup() {
           response.data.longitude != null
         ) {
           setLocationStatus(
-            "✅ Location already saved"
+            "✓ Location already saved"
           );
         }
       } catch (error) {
-        // 404 means donor has not created profile yet
+        // 404 simply means profile
+        // doesn't exist yet.
         if (
           error.response?.status !== 404
         ) {
-          console.error(
-            "Load donor profile error:",
-            error
-          );
+          console.error(error);
         }
       }
     };
@@ -144,31 +150,20 @@ function DonorProfileSetup() {
     loadProfile();
   }, []);
 
-  // ==========================================
-  // SAVE DONOR PROFILE
-  // ==========================================
+  // =====================================================
+  // SUBMIT
+  // =====================================================
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!form.blood_group) {
-      alert("Please select your blood group.");
+      alert("Select blood group");
       return;
     }
 
     if (!form.city.trim()) {
-      alert("Please enter your city.");
-      return;
-    }
-
-    if (
-      form.latitude == null ||
-      form.longitude == null
-    ) {
-      alert(
-        "Please click 'Use My Current Location' so BloodBridge can calculate distance."
-      );
-
+      alert("Enter your city");
       return;
     }
 
@@ -176,29 +171,12 @@ function DonorProfileSetup() {
       setLoading(true);
 
       const payload = {
-        blood_group:
-          form.blood_group,
-
-        city:
-          form.city.trim(),
-
-        latitude:
-          form.latitude,
-
-        longitude:
-          form.longitude,
+        ...form,
 
         last_donation_date:
-          form.last_donation_date || null,
-
-        available:
-          form.available,
+          form.last_donation_date ||
+          null,
       };
-
-      console.log(
-        "Sending donor profile:",
-        payload
-      );
 
       const response =
         await api.post(
@@ -206,37 +184,22 @@ function DonorProfileSetup() {
           payload
         );
 
-      console.log(
-        "Profile response:",
-        response.data
-      );
-
-      alert(
-        response.data?.message ||
-          "Donor profile saved successfully"
-      );
+      alert(response.data.message);
 
       navigate(
         "/donor-dashboard"
       );
     } catch (error) {
-      console.error(
-        "Save donor profile error:",
-        error
-      );
+      console.error(error);
 
       alert(
         error.response?.data?.detail ||
-          "Failed to save donor profile"
+          "Could not save donor profile"
       );
     } finally {
       setLoading(false);
     }
   };
-
-  // ==========================================
-  // PAGE
-  // ==========================================
 
   return (
     <div className="create-request-page">
@@ -250,13 +213,13 @@ function DonorProfileSetup() {
           </p>
 
           <h1>
-            Set Up Your Donor Profile
+            Your donor information
           </h1>
 
           <p>
-            Add your blood group, location and
-            availability so BloodBridge can find
-            nearby blood requests for you.
+            Add your blood group and current
+            location so BloodBridge can find
+            nearby requests.
           </p>
 
         </div>
@@ -285,37 +248,17 @@ function DonorProfileSetup() {
                 Select Blood Group
               </option>
 
-              <option value="A+">
-                A+
-              </option>
+              <option value="A+">A+</option>
+              <option value="A-">A-</option>
 
-              <option value="A-">
-                A-
-              </option>
+              <option value="B+">B+</option>
+              <option value="B-">B-</option>
 
-              <option value="B+">
-                B+
-              </option>
+              <option value="AB+">AB+</option>
+              <option value="AB-">AB-</option>
 
-              <option value="B-">
-                B-
-              </option>
-
-              <option value="AB+">
-                AB+
-              </option>
-
-              <option value="AB-">
-                AB-
-              </option>
-
-              <option value="O+">
-                O+
-              </option>
-
-              <option value="O-">
-                O-
-              </option>
+              <option value="O+">O+</option>
+              <option value="O-">O-</option>
 
             </select>
 
@@ -340,12 +283,12 @@ function DonorProfileSetup() {
 
           </div>
 
-          {/* CURRENT LOCATION */}
+          {/* GPS */}
 
           <div className="form-group">
 
             <label>
-              Exact Current Location
+              Current Location
             </label>
 
             <button
@@ -354,60 +297,28 @@ function DonorProfileSetup() {
               style={{
                 width: "100%",
                 padding: "13px",
+                borderRadius: "10px",
                 border:
                   "1px solid #b91c1c",
-                borderRadius: "10px",
                 background: "white",
                 color: "#b91c1c",
-                fontSize: "15px",
-                fontWeight: "700",
                 cursor: "pointer",
+                fontWeight: "700",
               }}
             >
               📍 Use My Current Location
             </button>
 
             {locationStatus && (
-              <p
+              <small
                 style={{
-                  marginTop: "10px",
-                  fontSize: "14px",
-                  color:
-                    locationStatus.includes("✅")
-                      ? "#166534"
-                      : "#64748b",
+                  display: "block",
+                  marginTop: "8px",
                 }}
               >
                 {locationStatus}
-              </p>
+              </small>
             )}
-
-            {form.latitude != null &&
-              form.longitude != null && (
-                <div
-                  style={{
-                    marginTop: "10px",
-                    padding: "10px",
-                    background: "#f8fafc",
-                    borderRadius: "8px",
-                    fontSize: "13px",
-                  }}
-                >
-                  <p>
-                    <strong>
-                      Latitude:
-                    </strong>{" "}
-                    {form.latitude}
-                  </p>
-
-                  <p>
-                    <strong>
-                      Longitude:
-                    </strong>{" "}
-                    {form.longitude}
-                  </p>
-                </div>
-              )}
 
           </div>
 
@@ -429,40 +340,39 @@ function DonorProfileSetup() {
             />
 
             <small className="form-help">
-              Leave this empty if you have never
-              donated blood before.
+              Leave empty if you have never
+              donated.
             </small>
 
           </div>
 
-          {/* AVAILABILITY */}
+          {/* AVAILABLE */}
 
           <div className="availability-check">
 
             <input
               type="checkbox"
-              id="available"
               name="available"
               checked={form.available}
               onChange={handleChange}
             />
 
-            <label htmlFor="available">
+            <label>
               I am currently available to donate
             </label>
 
           </div>
-
-          {/* SAVE */}
 
           <button
             type="submit"
             className="create-request-btn"
             disabled={loading}
           >
+
             {loading
               ? "Saving..."
               : "Save Donor Profile"}
+
           </button>
 
         </form>
@@ -473,4 +383,4 @@ function DonorProfileSetup() {
   );
 }
 
-export default DonorProfileSetup;
+export default DonorProfile;

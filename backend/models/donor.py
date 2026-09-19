@@ -4,7 +4,8 @@ from sqlalchemy import (
     String,
     Boolean,
     Date,
-    ForeignKey
+    ForeignKey,
+    Float,
 )
 
 from database import Base
@@ -13,35 +14,75 @@ from database import Base
 class DonorProfile(Base):
     __tablename__ = "donor_profiles"
 
+    # ==========================================
+    # PRIMARY KEY
+    # ==========================================
+
     id = Column(
         Integer,
         primary_key=True,
         index=True
     )
 
+    # ==========================================
+    # USER
+    # ==========================================
+
     user_id = Column(
         Integer,
         ForeignKey("users.id"),
         unique=True,
-        nullable=False
+        nullable=False,
+        index=True
     )
+
+    # ==========================================
+    # BLOOD GROUP
+    # ==========================================
 
     blood_group = Column(
-        String(5),
+        String,
         nullable=False
     )
 
+    # ==========================================
+    # CITY
+    # ==========================================
+
     city = Column(
-        String(100),
+        String,
         nullable=False
     )
+
+    # ==========================================
+    # LAST DONATION DATE
+    # ==========================================
 
     last_donation_date = Column(
         Date,
         nullable=True
     )
 
+    # ==========================================
+    # AVAILABILITY
+    # ==========================================
+
     available = Column(
         Boolean,
-        default=True
+        default=True,
+        nullable=False
+    )
+
+    # ==========================================
+    # GPS LOCATION
+    # ==========================================
+
+    latitude = Column(
+        Float,
+        nullable=True
+    )
+
+    longitude = Column(
+        Float,
+        nullable=True
     )

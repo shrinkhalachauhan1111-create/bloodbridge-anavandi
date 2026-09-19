@@ -1,68 +1,55 @@
-import os
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from database import Base, engine
+# =========================================================
+# ROUTERS
+# =========================================================
 
-# Import models so SQLAlchemy knows all tables
-from models.user import User
-from models.donor import DonorProfile
-from models.blood_request import BloodRequest
-from models.match import Match
-
-# Import routers
 from routes.auth import router as auth_router
 from routes.donors import router as donor_router
 from routes.requests import router as request_router
 from routes.matches import router as match_router
 from routes.dashboard import router as dashboard_router
+from routes.notifications import router as notification_router
 
 
 # =========================================================
-# CREATE DATABASE TABLES
-# =========================================================
-
-Base.metadata.create_all(bind=engine)
-
-
-# =========================================================
-# FASTAPI APP
+# CREATE FASTAPI APP
 # =========================================================
 
 app = FastAPI(
     title="BloodBridge API",
-    description="Privacy-first blood donor matching platform",
-    version="1.0.0"
+    description="Blood donor matching and emergency blood request API",
+    version="2.0.0"
 )
 
 
 # =========================================================
 # CORS
 # =========================================================
+#
+# React is running on:
+#
+# http://localhost:5173
+#
+# FastAPI is running on:
+#
+# http://127.0.0.1:8000
+#
+# The browser treats these as different origins.
+# Therefore we must explicitly allow the React frontend.
+# =========================================================
 
-# Production React frontend URL from Render environment variable
-frontend_url = os.getenv("FRONTEND_URL")
-
-
-# Allow local frontend during development
-allowed_origins = [
+origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
 
 
-# Add deployed React frontend URL
-if frontend_url:
-    allowed_origins.append(
-        frontend_url.rstrip("/")
-    )
-
-
 app.add_middleware(
     CORSMiddleware,
 
-    allow_origins=allowed_origins,
+    allow_origins=origins,
 
     allow_credentials=True,
 
@@ -73,34 +60,52 @@ app.add_middleware(
 
 
 # =========================================================
-# ROUTERS
+# INCLUDE ROUTERS
 # =========================================================
 
-app.include_router(auth_router)
+app.include_router(
+    auth_router
+)
 
-app.include_router(donor_router)
+app.include_router(
+    donor_router
+)
 
-app.include_router(request_router)
+app.include_router(
+    request_router
+)
 
-app.include_router(match_router)
+app.include_router(
+    match_router
+)
 
-app.include_router(dashboard_router)
+app.include_router(
+    dashboard_router
+)
+
+app.include_router(
+    notification_router
+)
 
 
 # =========================================================
-# BASIC ROUTES
+# ROOT ROUTE
 # =========================================================
 
 @app.get("/")
-def home():
+def root():
     return {
-        "message": "BloodBridge API is running"
+        "message": "BloodBridge API is running",
+        "version": "2.0.0"
     }
 
 
+# =========================================================
+# HEALTH CHECK
+# =========================================================
+
 @app.get("/health")
-def health():
+def health_check():
     return {
-        "status": "healthy",
-        "project": "BloodBridge"
+        "status": "healthy"
     }

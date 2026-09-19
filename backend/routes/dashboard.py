@@ -8,6 +8,8 @@ from models.donor import DonorProfile
 from models.blood_request import BloodRequest
 from models.match import Match
 
+from services.matching import calculate_distance_km
+
 from utils.dependencies import get_current_user
 
 
@@ -17,28 +19,36 @@ router = APIRouter(
 )
 
 
-# =========================================================
+# ============================================================
 # REQUESTER DASHBOARD
-# =========================================================
+# ============================================================
 
 @router.get("/requester")
 def requester_dashboard(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
 
-    # Only requester accounts can access this dashboard
+    # --------------------------------------------------------
+    # ONLY REQUESTERS
+    # --------------------------------------------------------
+
     if current_user.role != "requester":
         raise HTTPException(
             status_code=403,
-            detail="Only requesters can access this dashboard"
+            detail="Requester access required"
         )
 
-    # Get all blood requests created by this requester
+
+    # --------------------------------------------------------
+    # GET REQUESTER'S REQUESTS
+    # --------------------------------------------------------
+
     requests = (
         db.query(BloodRequest)
         .filter(
-            BloodRequest.requester_id == current_user.id
+            BloodRequest.requester_id
+            == current_user.id
         )
         .order_by(
             BloodRequest.created_at.desc()
@@ -46,163 +56,187 @@ def requester_dashboard(
         .all()
     )
 
-    # -----------------------------
-    # Dashboard statistics
-    # -----------------------------
+
+    # --------------------------------------------------------
+    # STATS
+    # --------------------------------------------------------
 
     total_requests = len(requests)
 
-    active_requests = sum(
-        1
-        for request in requests
-        if request.status == "searching"
-    )
-
-    matched_requests = sum(
-        1
-        for request in requests
-        if request.status == "matched"
-    )
-
-    completed_requests = sum(
-        1
-        for request in requests
-        if request.status == "completed"
-    )
+    searching = 0
+    matched = 0
+    completed = 0
 
 
-    # -----------------------------
-    # Recent blood requests
-    # -----------------------------
+    for request in requests:
+
+        if request.status == "searching":
+            searching += 1
+
+        elif request.status == "matched":
+            matched += 1
+
+        elif request.status == "completed":
+            completed += 1
+
+
+    # --------------------------------------------------------
+    # RECENT REQUESTS
+    # --------------------------------------------------------
 
     recent_requests = []
 
-    for request in requests[:5]:
 
-        # Count how many donors were matched
+    for request in requests:
+
+        # Count matches created for this request
         matching_donors = (
             db.query(Match)
             .filter(
-                Match.request_id == request.id
+                Match.request_id
+                == request.id
             )
             .count()
         )
 
-        # Check whether a donor accepted
+
+        # Check if one donor accepted
         accepted_match = (
             db.query(Match)
             .filter(
-                Match.request_id == request.id,
-                Match.status == "accepted"
+                Match.request_id
+                == request.id,
+
+                Match.status
+                == "accepted"
             )
             .first()
         )
 
-        recent_requests.append({
 
-            "id": request.id,
+        recent_requests.append(
+            {
+                "id":
+                    request.id,
 
-            "blood_group": request.blood_group,
+                "blood_group":
+                    request.blood_group,
 
-            "units": request.units,
+                "units":
+                    request.units,
 
-            "hospital_name": request.hospital_name,
+                "hospital_name":
+                    request.hospital_name,
 
-            "city": request.city,
+                "city":
+                    request.city,
 
-            "urgency": request.urgency,
+                "latitude":
+                    request.latitude,
 
-            "status": request.status,
+                "longitude":
+                    request.longitude,
 
-            "matching_donors": matching_donors,
+                "urgency":
+                    request.urgency,
 
-            "donor_accepted": accepted_match is not None,
+                "status":
+                    request.status,
 
-            # Needed by React to call:
-            # GET /matches/{match_id}/contact
-            "accepted_match_id":
-                accepted_match.id
-                if accepted_match
-                else None,
+                "matching_donors":
+                    matching_donors,
 
-            "created_at": request.created_at,
+                "donor_accepted":
+                    accepted_match
+                    is not None,
 
-            "expires_at": request.expires_at
-        })
+                "accepted_match_id":
+                    accepted_match.id
+                    if accepted_match
+                    else None,
 
+                "created_at":
+                    request.created_at,
 
-    # -----------------------------
-    # Final requester response
-    # -----------------------------
-
-    return {
-
-        "requester": {
-
-            "id": current_user.id,
-
-            "name": current_user.name,
-
-            "email": current_user.email,
-
-            "phone": current_user.phone
-        },
-
-        "stats": {
-
-            "total_requests": total_requests,
-
-            "active_requests": active_requests,
-
-            "matched_requests": matched_requests,
-
-            "completed_requests": completed_requests
-        },
-
-        "recent_requests": recent_requests
-    }
-
-
-# =========================================================
-# DONOR DASHBOARD
-# =========================================================
-
-@router.get("/donor")
-def donor_dashboard(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-
-    # Only donors can access this dashboard
-    if current_user.role != "donor":
-        raise HTTPException(
-            status_code=403,
-            detail="Only donors can access this dashboard"
+                "expires_at":
+                    request.expires_at,
+            }
         )
 
 
-    # Get donor profile
-    donor_profile = (
+    return {
+
+        "stats": {
+
+            "total_requests":
+                total_requests,
+
+            "searching":
+                searching,
+
+            "matched":
+                matched,
+
+            "completed":
+                completed,
+        },
+
+        "recent_requests":
+            recent_requests,
+    }
+
+
+# ============================================================
+# DONOR DASHBOARD
+# ============================================================
+
+@router.get("/donor")
+def donor_dashboard(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+
+    # --------------------------------------------------------
+    # ONLY DONORS
+    # --------------------------------------------------------
+
+    if current_user.role != "donor":
+        raise HTTPException(
+            status_code=403,
+            detail="Donor access required"
+        )
+
+
+    # --------------------------------------------------------
+    # GET DONOR PROFILE
+    # --------------------------------------------------------
+
+    donor = (
         db.query(DonorProfile)
         .filter(
-            DonorProfile.user_id == current_user.id
+            DonorProfile.user_id
+            == current_user.id
         )
         .first()
     )
 
 
-    if not donor_profile:
+    if not donor:
         raise HTTPException(
             status_code=404,
             detail="Donor profile not found"
         )
 
 
-    # Get all matches for this donor
+    # --------------------------------------------------------
+    # GET ALL MATCHES FOR DONOR
+    # --------------------------------------------------------
+
     matches = (
         db.query(Match)
         .filter(
-            Match.donor_id == donor_profile.id
+            Match.donor_id
+            == donor.id
         )
         .order_by(
             Match.created_at.desc()
@@ -211,112 +245,377 @@ def donor_dashboard(
     )
 
 
-    # -----------------------------
-    # Donor statistics
-    # -----------------------------
+    # ========================================================
+    # MATCH STATS
+    # ========================================================
 
-    pending_requests = sum(
-        1
-        for match in matches
-        if match.status == "pending"
-    )
-
-    accepted_requests = sum(
-        1
-        for match in matches
-        if match.status == "accepted"
-    )
-
-    declined_requests = sum(
-        1
-        for match in matches
-        if match.status == "declined"
-    )
+    accepted_count = 0
+    declined_count = 0
+    cancelled_count = 0
 
 
-    # -----------------------------
-    # Incoming blood requests
-    # -----------------------------
+    for match in matches:
 
-    incoming_requests = []
+        if match.status == "accepted":
+            accepted_count += 1
+
+        elif match.status == "declined":
+            declined_count += 1
+
+        elif match.status == "cancelled":
+            cancelled_count += 1
 
 
-    for match in matches[:10]:
+    # ========================================================
+    # FIND ALL PENDING REQUESTS
+    # ========================================================
+
+    pending_candidates = []
+
+
+    for match in matches:
+
+        if match.status != "pending":
+            continue
+
 
         blood_request = (
             db.query(BloodRequest)
             .filter(
-                BloodRequest.id == match.request_id
+                BloodRequest.id
+                == match.request_id
             )
             .first()
         )
 
 
-        if blood_request:
-
-            incoming_requests.append({
-
-                "match_id": match.id,
-
-                "match_status": match.status,
-
-                "blood_group": blood_request.blood_group,
-
-                "units": blood_request.units,
-
-                "hospital_name": blood_request.hospital_name,
-
-                "city": blood_request.city,
-
-                "urgency": blood_request.urgency,
-
-                "request_status": blood_request.status,
-
-                "created_at": blood_request.created_at,
-
-                "expires_at": blood_request.expires_at
-            })
+        if not blood_request:
+            continue
 
 
-    # -----------------------------
-    # Final donor response
-    # -----------------------------
+        # Skip requests that are already finished/matched
+        # by another donor.
+        if blood_request.status != "searching":
+            continue
+
+
+        # ----------------------------------------------------
+        # CALCULATE DISTANCE
+        # ----------------------------------------------------
+
+        distance_km = None
+
+
+        if (
+            donor.latitude is not None
+            and donor.longitude is not None
+            and blood_request.latitude is not None
+            and blood_request.longitude is not None
+        ):
+
+            distance_km = (
+                calculate_distance_km(
+
+                    donor.latitude,
+                    donor.longitude,
+
+                    blood_request.latitude,
+                    blood_request.longitude
+                )
+            )
+
+
+        pending_candidates.append(
+            {
+                "match":
+                    match,
+
+                "request":
+                    blood_request,
+
+                "distance_km":
+                    distance_km,
+            }
+        )
+
+
+    # ========================================================
+    # SELECT SHORTEST DISTANCE
+    # ========================================================
+
+    nearest_pending = None
+
+
+    # Requests that actually have GPS distance
+    requests_with_distance = [
+        candidate
+        for candidate in pending_candidates
+        if candidate["distance_km"]
+        is not None
+    ]
+
+
+    if requests_with_distance:
+
+        # Sort:
+        # 0.5 km
+        # 2 km
+        # 7 km
+        # etc.
+        requests_with_distance.sort(
+            key=lambda item:
+                item["distance_km"]
+        )
+
+
+        nearest_pending = (
+            requests_with_distance[0]
+        )
+
+
+        print("\n==============================")
+        print("DONOR NEAREST REQUEST CHECK")
+        print("==============================")
+
+
+        for item in requests_with_distance:
+
+            print(
+                f"Request ID "
+                f"{item['request'].id}"
+                f" -> "
+                f"{item['distance_km']} km"
+            )
+
+
+        print(
+            f"\nSelected Request ID "
+            f"{nearest_pending['request'].id}"
+            f" at "
+            f"{nearest_pending['distance_km']} km"
+        )
+
+
+    # --------------------------------------------------------
+    # FALLBACK
+    # If no pending request has GPS,
+    # show most recent pending match.
+    # --------------------------------------------------------
+
+    elif pending_candidates:
+
+        nearest_pending = (
+            pending_candidates[0]
+        )
+
+
+    # ========================================================
+    # BUILD INCOMING REQUEST LIST
+    # ========================================================
+
+    incoming_requests = []
+
+
+    # --------------------------------------------------------
+    # ONLY NEAREST PENDING REQUEST
+    # --------------------------------------------------------
+
+    if nearest_pending:
+
+        match = (
+            nearest_pending["match"]
+        )
+
+        blood_request = (
+            nearest_pending["request"]
+        )
+
+        distance_km = (
+            nearest_pending[
+                "distance_km"
+            ]
+        )
+
+
+        incoming_requests.append(
+            {
+                "match_id":
+                    match.id,
+
+                "match_status":
+                    match.status,
+
+                "request_id":
+                    blood_request.id,
+
+                "blood_group":
+                    blood_request.blood_group,
+
+                "units":
+                    blood_request.units,
+
+                "hospital_name":
+                    blood_request.hospital_name,
+
+                "city":
+                    blood_request.city,
+
+                "urgency":
+                    blood_request.urgency,
+
+                "request_status":
+                    blood_request.status,
+
+                "distance_km":
+                    distance_km,
+
+                "created_at":
+                    blood_request.created_at,
+
+                "expires_at":
+                    blood_request.expires_at,
+            }
+        )
+
+
+    # ========================================================
+    # ADD DONOR'S ACCEPTED / DECLINED / CANCELLED HISTORY
+    # ========================================================
+
+    for match in matches:
+
+        if match.status == "pending":
+            continue
+
+
+        blood_request = (
+            db.query(BloodRequest)
+            .filter(
+                BloodRequest.id
+                == match.request_id
+            )
+            .first()
+        )
+
+
+        if not blood_request:
+            continue
+
+
+        distance_km = None
+
+
+        if (
+            donor.latitude is not None
+            and donor.longitude is not None
+            and blood_request.latitude is not None
+            and blood_request.longitude is not None
+        ):
+
+            distance_km = (
+                calculate_distance_km(
+
+                    donor.latitude,
+                    donor.longitude,
+
+                    blood_request.latitude,
+                    blood_request.longitude
+                )
+            )
+
+
+        incoming_requests.append(
+            {
+                "match_id":
+                    match.id,
+
+                "match_status":
+                    match.status,
+
+                "request_id":
+                    blood_request.id,
+
+                "blood_group":
+                    blood_request.blood_group,
+
+                "units":
+                    blood_request.units,
+
+                "hospital_name":
+                    blood_request.hospital_name,
+
+                "city":
+                    blood_request.city,
+
+                "urgency":
+                    blood_request.urgency,
+
+                "request_status":
+                    blood_request.status,
+
+                "distance_km":
+                    distance_km,
+
+                "created_at":
+                    blood_request.created_at,
+
+                "expires_at":
+                    blood_request.expires_at,
+            }
+        )
+
+
+    # ========================================================
+    # RETURN DASHBOARD
+    # ========================================================
 
     return {
 
-        "donor": {
+        "profile": {
 
-            "id": current_user.id,
+            "id":
+                donor.id,
 
-            "name": current_user.name,
+            "blood_group":
+                donor.blood_group,
 
-            "email": current_user.email,
+            "city":
+                donor.city,
 
-            "phone": current_user.phone,
+            "latitude":
+                donor.latitude,
 
-            "blood_group": donor_profile.blood_group,
-
-            "city": donor_profile.city,
+            "longitude":
+                donor.longitude,
 
             "last_donation_date":
-                donor_profile.last_donation_date,
+                donor.last_donation_date,
 
             "available":
-                donor_profile.available
+                donor.available,
         },
+
 
         "stats": {
 
-            "pending_requests":
-                pending_requests,
+            # Only nearest pending request
+            # is shown to donor
+            "pending":
+                1
+                if nearest_pending
+                else 0,
 
-            "accepted_requests":
-                accepted_requests,
+            "accepted":
+                accepted_count,
 
-            "declined_requests":
-                declined_requests
+            "declined":
+                declined_count,
+
+            "cancelled":
+                cancelled_count,
         },
 
+
         "incoming_requests":
-            incoming_requests
+            incoming_requests,
     }

@@ -1,11 +1,12 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 
 from sqlalchemy import (
     Column,
     Integer,
     String,
     DateTime,
-    ForeignKey
+    ForeignKey,
+    Float,
 )
 
 from database import Base
@@ -23,11 +24,12 @@ class BloodRequest(Base):
     requester_id = Column(
         Integer,
         ForeignKey("users.id"),
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     blood_group = Column(
-        String(5),
+        String,
         nullable=False
     )
 
@@ -37,31 +39,45 @@ class BloodRequest(Base):
     )
 
     hospital_name = Column(
-        String(150),
+        String,
         nullable=False
     )
 
     city = Column(
-        String(100),
+        String,
         nullable=False
     )
 
+    # NEW
+    latitude = Column(
+        Float,
+        nullable=True
+    )
+
+    # NEW
+    longitude = Column(
+        Float,
+        nullable=True
+    )
+
     urgency = Column(
-        String(20),
+        String,
+        default="urgent",
         nullable=False
     )
 
     status = Column(
-        String(30),
-        default="searching"
+        String,
+        default="searching",
+        nullable=False
     )
 
     created_at = Column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc)
+        DateTime,
+        default=datetime.utcnow
     )
 
     expires_at = Column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc) + timedelta(hours=6)
+        DateTime,
+        nullable=True
     )

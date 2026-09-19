@@ -1,27 +1,46 @@
 from datetime import date
-from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
+
+# ============================================================
+# CREATE DONOR PROFILE
+# ============================================================
 
 class DonorProfileCreate(BaseModel):
-    blood_group: Literal[
-        "A+",
-        "A-",
-        "B+",
-        "B-",
-        "AB+",
-        "AB-",
-        "O+",
-        "O-"
-    ]
-
+    blood_group: str
     city: str
 
-    last_donation_date: date | None = None
+    # Location coordinates for distance-based matching
+    latitude: float | None = None
+    longitude: float | None = None
 
+    last_donation_date: date | None = None
     available: bool = True
 
 
-class AvailabilityUpdate(BaseModel):
+# ============================================================
+# UPDATE DONOR AVAILABILITY
+# ============================================================
+
+class DonorAvailabilityUpdate(BaseModel):
     available: bool
+
+
+# ============================================================
+# DONOR PROFILE RESPONSE
+# ============================================================
+
+class DonorProfileResponse(BaseModel):
+    id: int
+    user_id: int
+    blood_group: str
+    city: str
+
+    latitude: float | None = None
+    longitude: float | None = None
+
+    last_donation_date: date | None = None
+    available: bool
+
+    model_config = ConfigDict(from_attributes=True)

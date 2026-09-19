@@ -1,11 +1,11 @@
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import (
     Column,
     Integer,
     String,
     DateTime,
-    ForeignKey
+    ForeignKey,
 )
 
 from database import Base
@@ -33,16 +33,17 @@ class Match(Base):
     )
 
     status = Column(
-        String(20),
-        default="pending"
+        String,
+        default="pending",
+        nullable=False
     )
 
     created_at = Column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc)
+        DateTime,
+        default=datetime.utcnow
     )
 
     responded_at = Column(
-        DateTime(timezone=True),
+        DateTime,
         nullable=True
     )
